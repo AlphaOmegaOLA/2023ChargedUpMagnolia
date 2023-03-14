@@ -17,6 +17,8 @@ import edu.wpi.first.wpilibj.motorcontrol.Spark;
 import com.revrobotics.CANSparkMax;
 // Sparkmax/Neo encoders
 import com.revrobotics.RelativeEncoder;
+// Sparkmax PID Controller to smooth out arm movement
+import com.revrobotics.SparkMaxPIDController;
 // Our motor type is "Brushless" using the Rev Neo
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 // Pneumaticws libraries
@@ -32,34 +34,46 @@ import edu.wpi.first.cscore.UsbCamera;
 // Driver station info for game data
 import edu.wpi.first.wpilibj.DriverStation;
 // Dashboard for autonomous selection
-//import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 // Program the robot...
 public class Robot extends TimedRobot 
 {
   // CAN IDs of each motor on the robot 
-  private static final int frontLeftCANID = 4;
-  private static final int rearLeftCANID = 3;
-  private static final int frontRightCANID = 6;
-  private static final int rearRightCANID = 7;
-  private static final int armElevationCANID = 5;
+  private static final int leftFrontCANID = 4;
+  private static final int leftRearCANID = 3;
+  private static final int rightFrontCANID = 6;
+  private static final int rightRearCANID = 7;
+  private static final int armPivotCANID = 5;
   private static final int armExtensionCANID = 8;
   private static final int clawExtendPWM = 0;
   private static final int clawRetractPWM = 1;
 
   // Drivetrain Motors
-  private CANSparkMax frontLeftMotor = new CANSparkMax(frontLeftCANID, MotorType.kBrushless);
-  private CANSparkMax frontRightMotor = new CANSparkMax(frontRightCANID, MotorType.kBrushless);
-  private CANSparkMax rearLeftMotor = new CANSparkMax(rearLeftCANID, MotorType.kBrushless);
-  private CANSparkMax rearRightMotor = new CANSparkMax(rearRightCANID, MotorType.kBrushless);
+  private CANSparkMax leftFrontMotor = new CANSparkMax(leftFrontCANID, MotorType.kBrushless);
+  private CANSparkMax rightFrontMotor = new CANSparkMax(rightFrontCANID, MotorType.kBrushless);
+  private CANSparkMax leftRearMotor = new CANSparkMax(leftRearCANID, MotorType.kBrushless);
+  private CANSparkMax rightRearMotor = new CANSparkMax(rightRearCANID, MotorType.kBrushless);
 
   // Drivetrain
-  private MecanumDrive m_robotDrive;
+  private MecanumDrive driveTrain;
 
   // Arm Motors
   private CANSparkMax armExtensionMotor = new CANSparkMax(armExtensionCANID, MotorType.kBrushless);
-  private CANSparkMax armElevationMotor = new CANSparkMax(armElevationCANID, MotorType.kBrushless);
-  private RelativeEncoder armElevationEncoder;
+  private CANSparkMax armPivotMotor = new CANSparkMax(armPivotCANID, MotorType.kBrushless);
+  private RelativeEncoder armPivotEncoder;
+  private SparkMaxPIDController armPivotPIDController;
+
+  // PID coefficients
+  public double kP = 0.2; 
+  public double kI = 0; //1e-4; //0.0001
+  public double kD = 0; 
+  public double kIz = 0; 
+  public double kFF = 0; 
+  public double kMaxOutput = 5; 
+  public double kMinOutput = -5;
+  public int armDownRotations = 50;
+  public int armUpRotations = 2;
 
   // Claw Solenoid
   public DoubleSolenoid clawSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, clawExtendPWM, clawRetractPWM); 
@@ -111,28 +125,29 @@ public class Robot extends TimedRobot
   @Override
   public void robotInit() 
   {
-    frontLeftMotor = new CANSparkMax(frontLeftCANID, MotorType.kBrushless);
-    frontRightMotor = new CANSparkMax(frontRightCANID, MotorType.kBrushless);
-    rearLeftMotor = new CANSparkMax(rearLeftCANID, MotorType.kBrushless);
-    rearRightMotor = new CANSparkMax(rearRightCANID, MotorType.kBrushless);
+    leftFrontMotor = new CANSparkMax(leftFrontCANID, MotorType.kBrushless);
+    rightFrontMotor = new CANSparkMax(rightFrontCANID, MotorType.kBrushless);
+    leftRearMotor = new CANSparkMax(leftRearCANID, MotorType.kBrushless);
+    rightRearMotor = new CANSparkMax(rightRearCANID, MotorType.kBrushless);
 
     // Invert motors that spin the wrong way during testing
-    frontRightMotor.setInverted(true);
-    rearRightMotor.setInverted(true);
+    rightFrontMotor.setInverted(true);
+    rightRearMotor.setInverted(true);
 
     // Limit our arm motors for safety
     armExtensionMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
     armExtensionMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
     armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 168);
     armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 2);
-    armElevationMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
-    armElevationMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
-    armElevationMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 50);
-    armElevationMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 11);
-    armElevationEncoder = armElevationMotor.getEncoder();
+    armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
+    armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
+    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 50);
+    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 4);
+    armPivotEncoder = armPivotMotor.getEncoder();
+    armPivotPIDController = armPivotMotor.getPIDController();
 
     // Robot drivetrain subsystem
-    m_robotDrive = new MecanumDrive(frontLeftMotor, rearLeftMotor, frontRightMotor, rearRightMotor);
+    driveTrain = new MecanumDrive(leftFrontMotor, leftRearMotor, rightFrontMotor, rightRearMotor);
 
     // XBox Controllers
     xbox_drive = new XboxController(0);
@@ -169,8 +184,12 @@ public class Robot extends TimedRobot
 
     // Left joystick controls driving and strafing in any direction.
     // Right joystick controls spinning in place
-    m_robotDrive.driveCartesian(-1*xbox_drive.getLeftY(), xbox_drive.getLeftX(), xbox_drive.getRightX());
+    driveTrain.driveCartesian(-1*xbox_drive.getLeftY(), xbox_drive.getLeftX(), xbox_drive.getRightX());
     
+    // Display the arm Pivot encoder position on the dashboard (rotations)
+    SmartDashboard.putNumber("Arm Pivot Encoder Position", armPivotEncoder.getPosition());
+    SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
+
     // Extend Arm
     if (xbox_operator.getBButton())
     {
@@ -184,16 +203,29 @@ public class Robot extends TimedRobot
       armExtensionMotor.set(-.1);
     } 
     // Lower arm
-    else if (xbox_operator.getXButton())
-    {
-      System.out.println("X Button - Lower Arm!");
-      armElevationMotor.set(.1);
-    } 
-    // Raise arm
     else if (xbox_operator.getYButton())
     {
-      System.out.println("Y Button - Raise Arm!");
-      armElevationMotor.set(-.1);
+      System.out.println("Y Button - Lower Arm!");
+      //armPivotMotor.set(.1);
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armDownRotations, CANSparkMax.ControlType.kPosition);
+    } 
+    // Raise arm
+    else if (xbox_operator.getXButton())
+    {
+      System.out.println("X Button - Raise Arm!");
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armUpRotations, CANSparkMax.ControlType.kPosition);
     } 
     // Open Claw
     else if (xbox_operator.getLeftBumper())
