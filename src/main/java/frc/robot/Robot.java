@@ -66,13 +66,13 @@ public class Robot extends TimedRobot
 
   // PID coefficients
   public double kP = 0.2; 
-  public double kI = 0; //1e-4; //0.0001
-  public double kD = 0; 
-  public double kIz = 0; 
+  public double kI = 0.0001;
+  public double kD = .0008; 
+  public double kIz = 30; 
   public double kFF = 0; 
-  public double kMaxOutput = 5; 
-  public double kMinOutput = -5;
-  public int armDownRotations = 50;
+  public double kMaxOutput = .3; 
+  public double kMinOutput = -.3;
+  public int armDownRotations = 45;
   public int armUpRotations = 2;
 
   // Claw Solenoid
@@ -125,11 +125,6 @@ public class Robot extends TimedRobot
   @Override
   public void robotInit() 
   {
-    leftFrontMotor = new CANSparkMax(leftFrontCANID, MotorType.kBrushless);
-    rightFrontMotor = new CANSparkMax(rightFrontCANID, MotorType.kBrushless);
-    leftRearMotor = new CANSparkMax(leftRearCANID, MotorType.kBrushless);
-    rightRearMotor = new CANSparkMax(rightRearCANID, MotorType.kBrushless);
-
     // Invert motors that spin the wrong way during testing
     rightFrontMotor.setInverted(true);
     rightRearMotor.setInverted(true);
@@ -141,8 +136,8 @@ public class Robot extends TimedRobot
     armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 2);
     armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
     armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
-    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 50);
-    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 4);
+    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 48);
+    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 1);
     armPivotEncoder = armPivotMotor.getEncoder();
     armPivotPIDController = armPivotMotor.getPIDController();
 
@@ -184,7 +179,7 @@ public class Robot extends TimedRobot
 
     // Left joystick controls driving and strafing in any direction.
     // Right joystick controls spinning in place
-    driveTrain.driveCartesian(-1*xbox_drive.getLeftY(), xbox_drive.getLeftX(), xbox_drive.getRightX());
+    driveTrain.driveCartesian(-1*xbox_drive.getLeftY(), xbox_drive.getLeftX(), xbox_drive.getRightX()*.5);
     
     // Display the arm Pivot encoder position on the dashboard (rotations)
     SmartDashboard.putNumber("Arm Pivot Encoder Position", armPivotEncoder.getPosition());
@@ -230,14 +225,14 @@ public class Robot extends TimedRobot
     // Open Claw
     else if (xbox_operator.getLeftBumper())
     {
-      System.out.println("Left Bumper - Open Claw!");
-      clawSolenoid.set(kReverse);
+      System.out.println("Left Bumper - Close Claw!");
+      clawSolenoid.set(kForward);
     } 
     // Close Claw
     else if (xbox_operator.getRightBumper())
     {
-      System.out.println("Right Bumper - Close Claw!");
-      clawSolenoid.set(kForward);
+      System.out.println("Right Bumper - Open Claw!");
+      clawSolenoid.set(kReverse);
     } 
   }
 }
