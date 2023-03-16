@@ -6,6 +6,8 @@ package frc.robot;
 
 // Import the libraries we need
 
+// Countdown Timers
+import edu.wpi.first.wpilibj.Timer;
 // Using the TimedRobot paradigm
 import edu.wpi.first.wpilibj.TimedRobot;
 // Using the Mecanum omnidirectional Drive System
@@ -39,6 +41,10 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 // Program the robot...
 public class Robot extends TimedRobot 
 {
+
+    // Timer for autonomous
+  Timer autoTimer = new Timer();
+
   // CAN IDs of each motor on the robot 
   private static final int leftFrontCANID = 4;
   private static final int leftRearCANID = 3;
@@ -51,10 +57,13 @@ public class Robot extends TimedRobot
 
   // Drivetrain Motors
   private CANSparkMax leftFrontMotor = new CANSparkMax(leftFrontCANID, MotorType.kBrushless);
+  private RelativeEncoder leftFrontEncoder;
   private CANSparkMax rightFrontMotor = new CANSparkMax(rightFrontCANID, MotorType.kBrushless);
+  private RelativeEncoder rightFrontEncoder;
   private CANSparkMax leftRearMotor = new CANSparkMax(leftRearCANID, MotorType.kBrushless);
+  private RelativeEncoder leftRearEncoder;
   private CANSparkMax rightRearMotor = new CANSparkMax(rightRearCANID, MotorType.kBrushless);
-
+  private RelativeEncoder rightRearEncoder;
   // Drivetrain
   private MecanumDrive driveTrain;
 
@@ -74,9 +83,11 @@ public class Robot extends TimedRobot
 
   // Arm Motors
   private CANSparkMax armExtensionMotor = new CANSparkMax(armExtensionCANID, MotorType.kBrushless);
+  private RelativeEncoder armExtensionEncoder;
   private CANSparkMax armPivotMotor = new CANSparkMax(armPivotCANID, MotorType.kBrushless);
   private RelativeEncoder armPivotEncoder;
   private SparkMaxPIDController armPivotPIDController;
+  private SparkMaxPIDController armExtensionPIDController;
 
   /* PID CONTROLLER COEFFICIENTS
      The PID controller is what makes our arm move
@@ -104,13 +115,13 @@ public class Robot extends TimedRobot
   // These are the rotations we want for each arm position
   //
   // Pick things up off the floor
-  public int armFloorRotations = 45;
+  public int armFloorRotations = 43;
   // Grab an upright cone at the top
-  public int armConeTopRotations = 40;
+  public int armConeTopRotations = 38;
   // Go to scoring angle
-  public int armScoreRotations = 2;
+  public int armScoreRotations = 12;
   // Raise arm high for travelS
-  public int armTravelRotations = 1;
+  public int armTravelRotations = 0;
 
   // Claw Solenoid
   public DoubleSolenoid clawSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, clawExtendPWM, clawRetractPWM); 
@@ -135,7 +146,26 @@ public class Robot extends TimedRobot
 
   public void autonomousInit() 
   {
-    // reset all encoders
+    // reset all encoders is done in robot init
+        // Timer reset
+    autoTimer.reset();
+    autoTimer.start();
+        // Turn on the lights for autonomous based on our alliance color
+    if (DriverStation.getAlliance() == DriverStation.Alliance.Blue)
+    {
+      // Breath, Blue
+      lights.set(-0.15); 
+    }
+    else if (DriverStation.getAlliance() == DriverStation.Alliance.Red)
+    {
+      // Breath, Red
+      lights.set(-0.17);
+    }
+    else
+    {
+      // Color waves, Rainbow Palette
+      lights.set(-0.45);
+    }
   }
 
   @Override
@@ -156,20 +186,66 @@ public class Robot extends TimedRobot
     // extend arm
     // open claw
     // retract arm
-    // roll to correct scenario
+   // roll to correct scenario
+  /*
+    armPivotPIDController.setP(kP);
+    armPivotPIDController.setI(kI);
+    armPivotPIDController.setD(kD);
+    armPivotPIDController.setIZone(kIz);
+    armPivotPIDController.setFF(kFF);
+    armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+    armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
+  */
+    if (autoTimer.get() > 0 && autoTimer.get() < 4) 
+    {
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
+      armExtensionMotor.set(-.4);
+    }
 
-    // Extend arm
-    armExtensionMotor.set(.3);
-
-    // Drop game piece
-    clawSolenoid.set(kReverse);
-
-    // Retract Arm
-    armExtensionMotor.set(-.3);
-
-    // Now we need to check which scenario we're in
+    if (autoTimer.get() > 4 && autoTimer.get() < 7) 
+    {
+          armExtensionMotor.set(0);
+          // Drop game piece
+          clawSolenoid.set(kForward);
+    }
 
 
+    if (autoTimer.get() >7 && autoTimer.get() < 10) 
+    {
+      clawSolenoid.set(kReverse);
+      armExtensionMotor.set(.4);
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
+    }
+    
+
+    if (autoTimer.get() > 11.0 && autoTimer.get() < 13.0) 
+    {
+      armExtensionMotor.set(0);
+      // roll back
+      leftFrontMotor.set(-.3);
+      leftRearMotor.set(-.3);
+      rightFrontMotor.set(-.3);
+      rightRearMotor.set(-.3);
+    }
+    else if (autoTimer.get() > 14.0)
+    {
+      leftFrontMotor.set(0);
+      leftRearMotor.set(0);
+      rightFrontMotor.set(0);
+      rightRearMotor.set(0);
+    }
   }
 
   // TELEOP CODE
@@ -180,15 +256,31 @@ public class Robot extends TimedRobot
     rightFrontMotor.setInverted(true);
     rightRearMotor.setInverted(true);
 
+    // Get our drivetrain encoders
+    leftFrontEncoder = leftFrontMotor.getEncoder();
+    leftFrontEncoder.setPosition(0);
+    rightFrontEncoder = rightFrontMotor.getEncoder();
+    rightFrontEncoder.setPosition(0);
+    leftRearEncoder = leftRearMotor.getEncoder();
+    leftRearEncoder.setPosition(0);
+    rightRearEncoder = rightRearMotor.getEncoder();
+    rightRearEncoder.setPosition(0);
+
+
+
     // Limit our arm motors for safety
-    armExtensionMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
-    armExtensionMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
-    armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 168);
-    armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 2);
-    armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
-    armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
-    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 48);
-    armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 1);
+    //armExtensionMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
+    //armExtensionMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
+    //armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, -166);
+    //armExtensionMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 2);
+    armExtensionEncoder = armExtensionMotor.getEncoder();
+    armExtensionEncoder.setPosition(0);
+    armExtensionPIDController = armExtensionMotor.getPIDController();
+
+    //armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kForward, true);
+    //armPivotMotor.enableSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, true);
+    //armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kForward, 48);
+    //armPivotMotor.setSoftLimit(CANSparkMax.SoftLimitDirection.kReverse, 0);
     armPivotEncoder = armPivotMotor.getEncoder();
     armPivotPIDController = armPivotMotor.getPIDController();
 
@@ -239,45 +331,32 @@ public class Robot extends TimedRobot
     {
       driveScale = driveFast;
       rotateScale = rotateFast;
-      System.out.println("Driving FAST....");
+      //System.out.println("Driving FAST....");
     }
 
     // Left joystick controls driving and strafing in any direction.
     // Right joystick controls spinning in place
     driveTrain.driveCartesian(-1*xbox_drive.getLeftY()*driveScale, xbox_drive.getLeftX()*driveScale, xbox_drive.getRightX()*rotateScale);
     
+    // Arm extension
+    armExtensionMotor.set(xbox_operator.getLeftY()*.6);
+    // Manual pivot up or down - DANGEROUS!!
+    //armPivotMotor.set(xbox_operator.getRightTriggerAxis()*.3);
+    //armPivotMotor.set(xbox_operator.getLeftTriggerAxis()*.3);
+
     // Display the arm Pivot encoder position on the dashboard (rotations)
-    SmartDashboard.putNumber("Arm Pivot Encoder Position", armPivotEncoder.getPosition());
+    SmartDashboard.putNumber("Arm Pivot", armPivotEncoder.getPosition());
+    SmartDashboard.putNumber("Arm Extension", armExtensionEncoder.getPosition());
     SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
+    SmartDashboard.putNumber("LFM: ", leftFrontEncoder.getPosition());
+    SmartDashboard.putNumber("LRM: ", leftRearEncoder.getPosition());
+    SmartDashboard.putNumber("RFM: ", rightFrontEncoder.getPosition());
+    SmartDashboard.putNumber("RRM: ", rightRearEncoder.getPosition());
 
     // Raise arm all the way to travel
     if (xbox_operator.getAButton())
     {
-      System.out.println("A Button - Raise Arm to travel!");
-      armPivotPIDController.setP(kP);
-      armPivotPIDController.setI(kI);
-      armPivotPIDController.setD(kD);
-      armPivotPIDController.setIZone(kIz);
-      armPivotPIDController.setFF(kFF);
-      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
-    }
-    // Move arm into scoring position
-    else if (xbox_operator.getBButton())
-    {
-      System.out.println("B Button - Move arm to score!");
-      armPivotPIDController.setP(kP);
-      armPivotPIDController.setI(kI);
-      armPivotPIDController.setD(kD);
-      armPivotPIDController.setIZone(kIz);
-      armPivotPIDController.setFF(kFF);
-      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
-    } 
-    // Move arm to the top of an upright cone
-    else if (xbox_operator.getXButton())
-    {
-      System.out.println("X Button - Move arm to top of an upright cone!");
+      System.out.println("A Button - cone!");
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
       armPivotPIDController.setD(kD);
@@ -285,11 +364,11 @@ public class Robot extends TimedRobot
       armPivotPIDController.setFF(kFF);
       armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
       armPivotPIDController.setReference(armConeTopRotations, CANSparkMax.ControlType.kPosition);
-    } 
-    // Lower arm to floor to pick up game pieces
-    else if (xbox_operator.getYButton())
+    }
+    // Move arm into scoring position
+    else if (xbox_operator.getBButton())
     {
-      System.out.println("Y Button - Lower arm to floor!");
+      System.out.println("B Button - floor!");
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
       armPivotPIDController.setD(kD);
@@ -298,28 +377,40 @@ public class Robot extends TimedRobot
       armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
       armPivotPIDController.setReference(armFloorRotations, CANSparkMax.ControlType.kPosition);
     } 
-    // Retract Arm
-    else if (xbox_operator.getLeftBumper())
+    // Move arm to the top of an upright cone
+    else if (xbox_operator.getXButton())
     {
-      armExtensionMotor.set(-.3);
-      System.out.println("Left Bumper - Retract Arm!");
-    }
-    // Extend Arm
-    else if (xbox_operator.getRightBumper())
+      System.out.println("X Button - travel!");
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
+    } 
+    // Lower arm to floor to pick up game pieces
+    else if (xbox_operator.getYButton())
     {
-      armExtensionMotor.set(.3);
-      System.out.println("Right Bumper - Extend Arm!");
-    }
+      System.out.println("Y Button - Lower arm to score!");
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
+    } 
     // Open Claw
-    else if (xbox_operator.getLeftTriggerAxis() > 0)
+    else if (xbox_operator.getLeftStickButton())
     {
-      System.out.println("Left Trigger - Close Claw!");
+      System.out.println("Left Stick Button - Open Claw!");
       clawSolenoid.set(kForward);
     } 
     // Close Claw
-    else if (xbox_operator.getRightTriggerAxis() > 0)
+    else if (xbox_operator.getRightStickButton())
     {
-      System.out.println("Right Trigger - Open Claw!");
+      System.out.println("Right Stick Button - Close Claw!");
       clawSolenoid.set(kReverse);
     } 
   }
