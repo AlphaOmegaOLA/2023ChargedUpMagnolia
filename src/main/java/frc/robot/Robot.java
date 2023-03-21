@@ -15,7 +15,7 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 // Motor Controller used to control the lights
 import edu.wpi.first.wpilibj.motorcontrol.Spark;
 // Using Rev Robotics SparkMax motor controllers through
-// the CAN interface
+// the CAN interface for arm and PWM for everything else
 import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
 import com.revrobotics.CANSparkMax;
 // Sparkmax/Neo encoders
@@ -24,10 +24,6 @@ import com.revrobotics.RelativeEncoder;
 import com.revrobotics.SparkMaxPIDController;
 // Our motor type is "Brushless" using the Rev Neo
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
-// Pneumaticws libraries
-import edu.wpi.first.wpilibj.PneumaticsModuleType;
-import edu.wpi.first.wpilibj.DoubleSolenoid;
-import static edu.wpi.first.wpilibj.DoubleSolenoid.Value.*;
 // Xbox controllers for our joystics
 import edu.wpi.first.wpilibj.XboxController;
 // Camera Server for USB cameras
@@ -42,15 +38,21 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 // Program the robot...
 public class Robot extends TimedRobot 
 {
-
-    // Timer for autonomous
+  // Timer for autonomous
   Timer autoTimer = new Timer();
 
-  // CAN IDs of each motor on the robot 
+  // AutoBalance engine
+  // AutoBalance code uses the RoboRio 2 built-in IMU.
+  // Code taken from GitHub link in this post: https://www.chiefdelphi.com/t/psa-balance-in-auto/429778
+  private AutoBalance autoBalance;
+  private boolean balancing = false;
+
+  // CAN IDs of the arm motors on the robot.
+  // Assigned when we had 8 CAN motors. We switched
+  // back to PWM to change to a Tank drivetrain from
+  // Mecanum to climb the charge station
   private static final int armPivotCANID = 5;
   private static final int armExtensionCANID = 8;
-  private static final int clawExtendPWM = 0;
-  private static final int clawRetractPWM = 1;
 
   // Drivetrain Motors
   private PWMSparkMax leftMotor =  new PWMSparkMax(2);
@@ -62,14 +64,10 @@ public class Robot extends TimedRobot
   private double driveFast = 1.0;
   // Slow driving speed
   private double driveSlow = .3;
-  // Fast rotation
-  private double rotateFast = .5;
-  // Slow rotation
-  private double rotateSlow = .2;
   // Scaling factor to slow down drive speed
   private double driveScale = driveFast;
-  // Scaling factor to slow down rotation speed
-  private double rotateScale = rotateFast;
+  // Autobalance speed
+  private double autoBalanceSpeed;
 
   // Arm Motors
   private CANSparkMax armExtensionMotor = new CANSparkMax(armExtensionCANID, MotorType.kBrushless);
@@ -77,7 +75,6 @@ public class Robot extends TimedRobot
   private CANSparkMax armPivotMotor = new CANSparkMax(armPivotCANID, MotorType.kBrushless);
   private RelativeEncoder armPivotEncoder;
   private SparkMaxPIDController armPivotPIDController;
-  private SparkMaxPIDController armExtensionPIDController;
 
   /* PID CONTROLLER COEFFICIENTS
      The PID controller is what makes our arm move
@@ -156,41 +153,17 @@ public class Robot extends TimedRobot
   @Override
   public void autonomousPeriodic()
   {
-    // Autonomous routine template
-    // -- Back onto charge station left
-    // -- back onto charge station right
-    // -- back onto charge station center
-    // -- autobalance?
-    // -- just touch ramp to dock?
-    // -- go straight back
-    // -- back around charge station left
-    // -- back around charge station right
-    // -- spin to face game pieces?
-    //
-    // lower arm to set position
-    // extend arm
-    // open claw
-    // retract arm
-   // roll to correct scenario
-  /*
-    armPivotPIDController.setP(kP);
-    armPivotPIDController.setI(kI);
-    armPivotPIDController.setD(kD);
-    armPivotPIDController.setIZone(kIz);
-    armPivotPIDController.setFF(kFF);
-    armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-    armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
-  */
+ 
     if (autoTimer.get() > 0 && autoTimer.get() < 4) 
     {
-      armPivotPIDController.setP(kP);
-      armPivotPIDController.setI(kI);
-      armPivotPIDController.setD(kD);
-      armPivotPIDController.setIZone(kIz);
-      armPivotPIDController.setFF(kFF);
-      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
-      armExtensionMotor.set(-.4);
+      // armPivotPIDController.setP(kP);
+      // armPivotPIDController.setI(kI);
+      // armPivotPIDController.setD(kD);
+      // armPivotPIDController.setIZone(kIz);
+      // armPivotPIDController.setFF(kFF);
+      // armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      // armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
+      // armExtensionMotor.set(-.4);
     }
 
     if (autoTimer.get() > 4 && autoTimer.get() < 7) 
@@ -201,51 +174,46 @@ public class Robot extends TimedRobot
     }
 
 
-    if (autoTimer.get() >7 && autoTimer.get() < 10) 
+    if (autoTimer.get() > 7 && autoTimer.get() < 10) 
     {
       //clawSolenoid.set(kReverse);
-      armExtensionMotor.set(.4);
-      armPivotPIDController.setP(kP);
-      armPivotPIDController.setI(kI);
-      armPivotPIDController.setD(kD);
-      armPivotPIDController.setIZone(kIz);
-      armPivotPIDController.setFF(kFF);
-      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
+      // armExtensionMotor.set(.4);
+      // armPivotPIDController.setP(kP);
+      // armPivotPIDController.setI(kI);
+      // armPivotPIDController.setD(kD);
+      // armPivotPIDController.setIZone(kIz);
+      // armPivotPIDController.setFF(kFF);
+      // armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      // armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
     }
-    
+  
+    if (autoTimer.get() > 7)
+    {
+      // roll back and balance
+      autoBalanceSpeed = autoBalance.autoBalanceRoutine();      
+      leftMotor.set(autoBalanceSpeed);
+      rightMotor.set(autoBalanceSpeed);
+    }
 
-    if (autoTimer.get() > 11.0 && autoTimer.get() < 13.0) 
+    if (autoTimer.get() > 11.0) 
     {
-      armExtensionMotor.set(0);
-      // roll back
-      leftMotor.set(-.3);
-      rightMotor.set(-.3);
-    }
-    else if (autoTimer.get() > 14.0)
-    {
-      leftMotor.set(0);
-      rightMotor.set(0);
+      // armExtensionMotor.set(0);
     }
   }
 
   // TELEOP CODE
   @Override
   public void robotInit() 
-  {
-    // Invert motors that spin the wrong way during testing
-   // rightFrontMotor.setInverted(true);
-   // rightRearMotor.setInverted(true);
+  { 
 
+    // AutoBalance engine
+    autoBalance = new AutoBalance();
     
-
-
-    // Limit our arm motors for safety
+    // Set up Arm Extension encoder even though we aren't using it right now
     armExtensionEncoder = armExtensionMotor.getEncoder();
     armExtensionEncoder.setPosition(0);
-    armExtensionPIDController = armExtensionMotor.getPIDController();
 
-  
+    // We ARE using the armPivot encoder and doing a PIDController
     armPivotEncoder = armPivotMotor.getEncoder();
     armPivotPIDController = armPivotMotor.getPIDController();
 
@@ -257,7 +225,6 @@ public class Robot extends TimedRobot
 
     // Start drive camera
     topcam = CameraServer.startAutomaticCapture(0);
-
 
     // Turn on the lights
     if (DriverStation.getAlliance() == DriverStation.Alliance.Blue)
@@ -286,33 +253,41 @@ public class Robot extends TimedRobot
     if (xbox_drive.getRightTriggerAxis() > 0)
     {
       driveScale = driveSlow;
-      rotateScale = rotateSlow;
       System.out.println("Driving SLOW....");
     }
     else
     {
       driveScale = driveFast;
-      rotateScale = rotateFast;
       //System.out.println("Driving FAST....");
     }
 
     // Left joystick controls driving and strafing in any direction.
     // Right joystick controls spinning in place
-   // driveTrain.driveCartesian(-1*xbox_drive.getLeftY()*driveScale, xbox_drive.getLeftX()*driveScale, xbox_drive.getRightX()*rotateScale);
-     driveTrain.tankDrive(xbox_drive.getLeftY(), -xbox_drive.getRightY());
-    
+    if (!balancing)
+    {
+      driveTrain.tankDrive(xbox_drive.getLeftY()*driveScale, -xbox_drive.getRightY()*driveScale);
+    }
     // Arm extension
     armExtensionMotor.set(xbox_operator.getLeftY()*.6);
-    // Manual pivot up or down - DANGEROUS!!
-    //armPivotMotor.set(xbox_operator.getRightTriggerAxis()*.3);
-    //armPivotMotor.set(xbox_operator.getLeftTriggerAxis()*.3);
 
     // Display the arm Pivot encoder position on the dashboard (rotations)
     SmartDashboard.putNumber("Arm Pivot", armPivotEncoder.getPosition());
     SmartDashboard.putNumber("Arm Extension", armExtensionEncoder.getPosition());
     SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
-    
 
+    // Autobalance during teleop
+    if (xbox_drive.getAButton())
+    {
+      balancing = true;
+      autoBalanceSpeed = autoBalance.autoBalanceRoutine();
+      leftMotor.set(autoBalanceSpeed);
+      rightMotor.set(autoBalanceSpeed);
+    }
+    else
+    {
+      balancing = false;
+    }
+    
     // Raise arm all the way to travel
     if (xbox_operator.getAButton())
     {

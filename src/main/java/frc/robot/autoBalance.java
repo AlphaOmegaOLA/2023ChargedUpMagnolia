@@ -2,7 +2,8 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 
-public class autoBalance {
+public class AutoBalance 
+{
     private BuiltInAccelerometer mRioAccel;
     private int state;
     private int debounceCount;
@@ -15,7 +16,8 @@ public class autoBalance {
     private double scoringBackUpTime;
     private double doubleTapTime;
 
-    public autoBalance() {
+    public AutoBalance() 
+    {
         mRioAccel = new BuiltInAccelerometer();
         state = 0;
         debounceCount = 0;
@@ -59,42 +61,53 @@ public class autoBalance {
 
     }
 
-    public double getPitch() {
+    public double getPitch() 
+    {
         return Math.atan2((-mRioAccel.getX()),
                 Math.sqrt(mRioAccel.getY() * mRioAccel.getY() + mRioAccel.getZ() * mRioAccel.getZ())) * 57.3;
     }
 
-    public double getRoll() {
+    public double getRoll() 
+    {
         return Math.atan2(mRioAccel.getY(), mRioAccel.getZ()) * 57.3;
     }
 
     // returns the magnititude of the robot's tilt calculated by the root of
     // pitch^2 + roll^2, used to compensate for diagonally mounted rio
-    public double getTilt() {
+    public double getTilt() 
+    {
         double pitch = getPitch();
         double roll = getRoll();
-        if ((pitch + roll) >= 0) {
+        if ((pitch + roll) >= 0) 
+        {
             return Math.sqrt(pitch * pitch + roll * roll);
-        } else {
+        } 
+        else 
+        {
             return -Math.sqrt(pitch * pitch + roll * roll);
         }
     }
 
-    public int secondsToTicks(double time) {
+    public int secondsToTicks(double time) 
+    {
         return (int) (time * 50);
     }
 
     // routine for automatically driving onto and engaging the charge station.
     // returns a value from -1.0 to 1.0, which left and right motors should be set
     // to.
-    public double autoBalanceRoutine() {
-        switch (state) {
+    public double autoBalanceRoutine() 
+    {
+        switch (state) 
+        {
             // drive forwards to approach station, exit when tilt is detected
             case 0:
-                if (getTilt() > onChargeStationDegree) {
+                if (getTilt() > onChargeStationDegree) 
+                {
                     debounceCount++;
                 }
-                if (debounceCount > secondsToTicks(debounceTime)) {
+                if (debounceCount > secondsToTicks(debounceTime)) 
+                {
                     state = 1;
                     debounceCount = 0;
                     return robotSpeedSlow;
@@ -102,10 +115,12 @@ public class autoBalance {
                 return robotSpeedFast;
             // driving up charge station, drive slower, stopping when level
             case 1:
-                if (getTilt() < levelDegree) {
+                if (getTilt() < levelDegree) 
+                {
                     debounceCount++;
                 }
-                if (debounceCount > secondsToTicks(debounceTime)) {
+                if (debounceCount > secondsToTicks(debounceTime)) 
+                {
                     state = 2;
                     debounceCount = 0;
                     return 0;
@@ -113,17 +128,22 @@ public class autoBalance {
                 return robotSpeedSlow;
             // on charge station, stop motors and wait for end of auto
             case 2:
-                if (Math.abs(getTilt()) <= levelDegree / 2) {
+                if (Math.abs(getTilt()) <= levelDegree / 2) 
+                {
                     debounceCount++;
                 }
-                if (debounceCount > secondsToTicks(debounceTime)) {
+                if (debounceCount > secondsToTicks(debounceTime)) 
+                {
                     state = 4;
                     debounceCount = 0;
                     return 0;
                 }
-                if (getTilt() >= levelDegree) {
+                if (getTilt() >= levelDegree) 
+                {
                     return 0.1;
-                } else if (getTilt() <= -levelDegree) {
+                } 
+                else if (getTilt() <= -levelDegree) 
+                {
                     return -0.1;
                 }
             case 3:
@@ -134,28 +154,39 @@ public class autoBalance {
 
     // Same as auto balance above, but starts auto period by scoring
     // a game piece on the back bumper of the robot
-    public double scoreAndBalance() {
-        switch (state) {
+    public double scoreAndBalance() 
+    {
+        switch (state) 
+        {
             // drive back, then forwards, then back again to knock off and score game piece
             case 0:
                 debounceCount++;
-                if (debounceCount < secondsToTicks(singleTapTime)) {
+                if (debounceCount < secondsToTicks(singleTapTime)) 
+                {
                     return -robotSpeedFast;
-                } else if (debounceCount < secondsToTicks(singleTapTime + scoringBackUpTime)) {
+                } 
+                else if (debounceCount < secondsToTicks(singleTapTime + scoringBackUpTime)) 
+                {
                     return robotSpeedFast;
-                } else if (debounceCount < secondsToTicks(singleTapTime + scoringBackUpTime + doubleTapTime)) {
+                } 
+                else if (debounceCount < secondsToTicks(singleTapTime + scoringBackUpTime + doubleTapTime)) 
+                {
                     return -robotSpeedFast;
-                } else {
+                } 
+                else 
+                {
                     debounceCount = 0;
                     state = 1;
                     return 0;
                 }
                 // drive forwards until on charge station
             case 1:
-                if (getTilt() > onChargeStationDegree) {
+                if (getTilt() > onChargeStationDegree) 
+                {
                     debounceCount++;
                 }
-                if (debounceCount > secondsToTicks(debounceTime)) {
+                if (debounceCount > secondsToTicks(debounceTime)) 
+                {
                     state = 2;
                     debounceCount = 0;
                     return robotSpeedSlow;
@@ -163,10 +194,12 @@ public class autoBalance {
                 return robotSpeedFast;
             // driving up charge station, drive slower, stopping when level
             case 2:
-                if (getTilt() < levelDegree) {
+                if (getTilt() < levelDegree) 
+                {
                     debounceCount++;
                 }
-                if (debounceCount > secondsToTicks(debounceTime)) {
+                if (debounceCount > secondsToTicks(debounceTime)) 
+                {
                     state = 3;
                     debounceCount = 0;
                     return 0;
@@ -174,17 +207,21 @@ public class autoBalance {
                 return robotSpeedSlow;
             // on charge station, ensure robot is flat, then end auto
             case 3:
-                if (Math.abs(getTilt()) <= levelDegree / 2) {
+                if (Math.abs(getTilt()) <= levelDegree / 2) 
+                {
                     debounceCount++;
                 }
-                if (debounceCount > secondsToTicks(debounceTime)) {
+                if (debounceCount > secondsToTicks(debounceTime)) 
+                {
                     state = 4;
                     debounceCount = 0;
                     return 0;
                 }
-                if (getTilt() >= levelDegree) {
+                if (getTilt() >= levelDegree) 
+                {
                     return robotSpeedSlow / 2;
-                } else if (getTilt() <= -levelDegree) {
+                } else if (getTilt() <= -levelDegree) 
+                {
                     return -robotSpeedSlow / 2;
                 }
             case 4:
