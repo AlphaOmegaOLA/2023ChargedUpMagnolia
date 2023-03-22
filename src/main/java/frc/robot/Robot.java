@@ -69,6 +69,10 @@ public class Robot extends TimedRobot
   // Autobalance speed
   private double autoBalanceSpeed;
 
+  // Intake Motors
+  private PWMSparkMax leftIntakeMotor =  new PWMSparkMax(4);
+  private PWMSparkMax rightIntakeMotor =  new PWMSparkMax(5);
+
   // Arm Motors
   private CANSparkMax armExtensionMotor = new CANSparkMax(armExtensionCANID, MotorType.kBrushless);
   private RelativeEncoder armExtensionEncoder;
@@ -189,8 +193,11 @@ public class Robot extends TimedRobot
   
     if (autoTimer.get() > 7)
     {
-      // roll back and balance
-      autoBalanceSpeed = autoBalance.autoBalanceRoutine();      
+      // Roll back and balance. We put a negative sign
+      // in front of the speed calculation in order to
+      // reverse the direction since it assumes the bot
+      // is facing the charging station.
+      autoBalanceSpeed = -autoBalance.autoBalanceRoutine();      
       leftMotor.set(autoBalanceSpeed);
       rightMotor.set(autoBalanceSpeed);
     }
@@ -336,17 +343,9 @@ public class Robot extends TimedRobot
       armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
       armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
     } 
-    // Open Claw
-    else if (xbox_operator.getLeftStickButton())
-    {
-      System.out.println("Left Stick Button - Open Claw!");
-      //clawSolenoid.set(kForward);
-    } 
-    // Close Claw
-    else if (xbox_operator.getRightStickButton())
-    {
-      System.out.println("Right Stick Button - Close Claw!");
-      //clawSolenoid.set(kReverse);
-    } 
+
+    // Intake system
+    leftIntakeMotor.set(xbox_operator.getRightY());
+    rightIntakeMotor.set(xbox_operator.getRightY());
   }
 }
