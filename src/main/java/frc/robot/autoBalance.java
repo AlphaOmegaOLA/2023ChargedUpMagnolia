@@ -34,18 +34,18 @@ public class AutoBalance
         robotSpeedSlow = 0.2;
 
         // Angle where the robot knows it is on the charge station, default = 13.0
-        onChargeStationDegree = 13.0;
+        onChargeStationDegree = -10.0;
 
         // Angle where the robot can assume it is level on the charging station
         // Used for exiting the drive forward sequence as well as for auto balancing,
         // default = 6.0
-        levelDegree = 6.0;
+        levelDegree = -8.0;
 
         // Amount of time a sensor condition needs to be met before changing states in
         // seconds
         // Reduces the impact of sensor noice, but too high can make the auto run
         // slower, default = 0.2
-        debounceTime = 0.2;
+        debounceTime = 0.1;
 
         // Amount of time to drive towards to scoring target when trying to bump the
         // game piece off

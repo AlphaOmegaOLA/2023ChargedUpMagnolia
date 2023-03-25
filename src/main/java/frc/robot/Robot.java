@@ -34,12 +34,22 @@ import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.wpilibj.DriverStation;
 // Dashboard for autonomous selection
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+// Data Logger
+import edu.wpi.first.wpilibj.DataLogManager;
+// Limit joystick jumpiness
+import edu.wpi.first.math.filter.SlewRateLimiter;
 
 // Program the robot...
 public class Robot extends TimedRobot 
 {
   // Timer for autonomous
   Timer autoTimer = new Timer();
+
+  // For driverstation match information
+  private boolean hasMatchName = false;
+
+  // Slewrate limiter to dampen joystick rate change
+  SlewRateLimiter filter = new SlewRateLimiter(0.5);
 
   // AutoBalance engine
   // AutoBalance code uses the RoboRio 2 built-in IMU.
@@ -63,13 +73,15 @@ public class Robot extends TimedRobot
   // Fast driving speed
   private double driveFast = 1.0;
   // Slow driving speed
-  private double driveSlow = .3;
+  private double driveSlow = .4;
   // Scaling factor to slow down drive speed
   private double driveScale = driveFast;
   // Autobalance speed
   private double autoBalanceSpeed;
 
   // Intake Motors
+  private double leftIntakeDirection = -1.0;
+  private double rightIntakeDirection = 1.0;
   private PWMSparkMax leftIntakeMotor =  new PWMSparkMax(4);
   private PWMSparkMax rightIntakeMotor =  new PWMSparkMax(5);
 
@@ -94,7 +106,7 @@ public class Robot extends TimedRobot
   // (D)ifferential Value - slows the motor down as the
   // motor gets closer to its goal 
   public double kD = .0008; 
-  // I Zone - limits when the I value starts keeping track
+  // I Zone (rotations) - limits when the I value starts keeping track
   public double kIz = 30; 
   // Feed forward is the minimum amount of power we think
   // we need so the motor doesn't struggle ramping up. Our
@@ -106,13 +118,13 @@ public class Robot extends TimedRobot
   // These are the rotations we want for each arm position
   //
   // Pick things up off the floor
-  public int armFloorRotations = 43;
+  public int armFloorRotations = 48;
   // Grab an upright cone at the top
   public int armConeTopRotations = 38;
   // Go to scoring angle
-  public int armScoreRotations = 12;
+  public int armScoreRotations = 14;
   // Raise arm high for travelS
-  public int armTravelRotations = 0;
+  public int armTravelRotations = 4;
 
 
   // Xbox controller for driver
@@ -157,38 +169,48 @@ public class Robot extends TimedRobot
   @Override
   public void autonomousPeriodic()
   {
- 
+
+    // Display match data on dashboard
+    // We do this in periodic because robot code can start before connecting to the FMS
+    if (DriverStation.isFMSAttached() && !hasMatchName) 
+    {
+      String eventName = DriverStation.getEventName();
+      DriverStation.MatchType matchType = DriverStation.getMatchType();
+      int matchNumber = DriverStation.getMatchNumber();
+      int replayNumber = DriverStation.getReplayNumber();
+      SmartDashboard.putString("MATCH", String.format("%s_%s_%d_%d", eventName, matchType.name(), matchNumber, replayNumber));
+      hasMatchName = true;
+    }    
+
     if (autoTimer.get() > 0 && autoTimer.get() < 4) 
     {
-      // armPivotPIDController.setP(kP);
-      // armPivotPIDController.setI(kI);
-      // armPivotPIDController.setD(kD);
-      // armPivotPIDController.setIZone(kIz);
-      // armPivotPIDController.setFF(kFF);
-      // armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      // armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
-      // armExtensionMotor.set(-.4);
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
+      armExtensionMotor.set(-.4);
     }
 
     if (autoTimer.get() > 4 && autoTimer.get() < 7) 
     {
-        //  armExtensionMotor.set(0);
-          // Drop game piece
-         // clawSolenoid.set(kForward);
+      // Drop game piece
+      leftIntakeMotor.set(-1 * leftIntakeDirection);
+      rightIntakeMotor.set(-1 * rightIntakeDirection);
     }
-
 
     if (autoTimer.get() > 7 && autoTimer.get() < 10) 
     {
-      //clawSolenoid.set(kReverse);
-      // armExtensionMotor.set(.4);
-      // armPivotPIDController.setP(kP);
-      // armPivotPIDController.setI(kI);
-      // armPivotPIDController.setD(kD);
-      // armPivotPIDController.setIZone(kIz);
-      // armPivotPIDController.setFF(kFF);
-      // armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      // armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
+      armExtensionMotor.set(.4);
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
     }
   
     if (autoTimer.get() > 7)
@@ -208,10 +230,16 @@ public class Robot extends TimedRobot
     }
   }
 
-  // TELEOP CODE
+  // ROBOT INITIALIZATION
   @Override
   public void robotInit() 
   { 
+    // Start data logging
+    DataLogManager.start();
+    DriverStation.startDataLog(DataLogManager.getLog());
+
+    // Set the match name to practice initially
+    SmartDashboard.putString("MATCH", "practice");
 
     // AutoBalance engine
     autoBalance = new AutoBalance();
@@ -238,24 +266,30 @@ public class Robot extends TimedRobot
     {
       // Breath, Blue
       lights.set(-0.15); 
+      SmartDashboard.putString("ALLIANCE", "BLUE");
     }
     else if (DriverStation.getAlliance() == DriverStation.Alliance.Red)
     {
       // Breath, Red
       lights.set(-0.17);
+      SmartDashboard.putString("ALLIANCE", "RED");
     }
     else
     {
       // Color Waves, Rainbow Palette
       lights.set(-0.45);
     }
+
+    SmartDashboard.putNumber("GAME CLOCK", DriverStation.getMatchTime());
+    SmartDashboard.putNumber("ROBOT TILT", autoBalance.getTilt());
   }
 
   @Override
+  // TELEOP 
   public void teleopPeriodic() 
   {
     // The section executes repeatedly when the robot enters TeleOp mode
-
+    SmartDashboard.putNumber("ROBOT TILT", autoBalance.getTilt());
     // Slow down robot for precision driving
     if (xbox_drive.getRightTriggerAxis() > 0)
     {
@@ -272,15 +306,15 @@ public class Robot extends TimedRobot
     // Right joystick controls spinning in place
     if (!balancing)
     {
-      driveTrain.tankDrive(xbox_drive.getLeftY()*driveScale, -xbox_drive.getRightY()*driveScale);
+      driveTrain.arcadeDrive(xbox_drive.getRightX()*driveScale, filter.calculate(xbox_drive.getLeftY()*driveScale));
     }
     // Arm extension
     armExtensionMotor.set(xbox_operator.getLeftY()*.6);
 
     // Display the arm Pivot encoder position on the dashboard (rotations)
-    SmartDashboard.putNumber("Arm Pivot", armPivotEncoder.getPosition());
-    SmartDashboard.putNumber("Arm Extension", armExtensionEncoder.getPosition());
-    SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
+    //SmartDashboard.putNumber("Arm Pivot", armPivotEncoder.getPosition());
+    //SmartDashboard.putNumber("Arm Extension", armExtensionEncoder.getPosition());
+    //SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
 
     // Autobalance during teleop
     if (xbox_drive.getAButton())
@@ -288,7 +322,7 @@ public class Robot extends TimedRobot
       balancing = true;
       autoBalanceSpeed = autoBalance.autoBalanceRoutine();
       leftMotor.set(autoBalanceSpeed);
-      rightMotor.set(autoBalanceSpeed);
+      rightMotor.set(-autoBalanceSpeed);
     }
     else
     {
@@ -298,7 +332,7 @@ public class Robot extends TimedRobot
     // Raise arm all the way to travel
     if (xbox_operator.getAButton())
     {
-      System.out.println("A Button - cone!");
+      System.out.println("A Button - Arm at cone tip level!");
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
       armPivotPIDController.setD(kD);
@@ -310,7 +344,7 @@ public class Robot extends TimedRobot
     // Move arm into scoring position
     else if (xbox_operator.getBButton())
     {
-      System.out.println("B Button - floor!");
+      System.out.println("B Button - Arm at floor level!");
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
       armPivotPIDController.setD(kD);
@@ -322,7 +356,7 @@ public class Robot extends TimedRobot
     // Move arm to the top of an upright cone
     else if (xbox_operator.getXButton())
     {
-      System.out.println("X Button - travel!");
+      System.out.println("X Button - Arm in Travel Mode!");
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
       armPivotPIDController.setD(kD);
@@ -334,7 +368,7 @@ public class Robot extends TimedRobot
     // Lower arm to floor to pick up game pieces
     else if (xbox_operator.getYButton())
     {
-      System.out.println("Y Button - Lower arm to score!");
+      System.out.println("Y Button - Arm at scoring level!");
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
       armPivotPIDController.setD(kD);
@@ -345,7 +379,7 @@ public class Robot extends TimedRobot
     } 
 
     // Intake system
-    leftIntakeMotor.set(xbox_operator.getRightY());
-    rightIntakeMotor.set(xbox_operator.getRightY());
+    leftIntakeMotor.set(xbox_operator.getRightY() * leftIntakeDirection *.5);
+    rightIntakeMotor.set(xbox_operator.getRightY() * rightIntakeDirection * .5);
   }
 }
