@@ -206,6 +206,8 @@ public class Robot extends TimedRobot
 
     if (autoTimer.get() > 7 && autoTimer.get() < 10) 
     {
+      leftIntakeMotor.set(0);
+      rightIntakeMotor.set(0);
       armExtensionMotor.set(.4);
       armPivotPIDController.setP(kP);
       armPivotPIDController.setI(kI);
