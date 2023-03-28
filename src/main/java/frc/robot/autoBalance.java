@@ -26,7 +26,7 @@ public class AutoBalance
          * CONFIG *
          **********/
         // Speed the robot drived while scoring/approaching station, default = 0.4
-        robotSpeedFast = 0.4;
+        robotSpeedFast = 0.6;
 
         // Speed the robot drives while balancing itself on the charge station.
         // Should be roughly half the fast speed, to make the robot more accurate,

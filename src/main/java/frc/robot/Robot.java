@@ -49,7 +49,7 @@ public class Robot extends TimedRobot
   private boolean hasMatchName = false;
 
   // Slewrate limiter to dampen joystick rate change
-  SlewRateLimiter filter = new SlewRateLimiter(0.5);
+  SlewRateLimiter filter = new SlewRateLimiter(0.2);
 
   // AutoBalance engine
   // AutoBalance code uses the RoboRio 2 built-in IMU.
@@ -82,12 +82,15 @@ public class Robot extends TimedRobot
   // Intake Motors
   private double leftIntakeDirection = -1.0;
   private double rightIntakeDirection = 1.0;
+  // Slow down intake release
+  private double intakeScale = 1.0;
   private PWMSparkMax leftIntakeMotor =  new PWMSparkMax(4);
   private PWMSparkMax rightIntakeMotor =  new PWMSparkMax(5);
 
   // Arm Motors
   private CANSparkMax armExtensionMotor = new CANSparkMax(armExtensionCANID, MotorType.kBrushless);
   private RelativeEncoder armExtensionEncoder;
+  private SparkMaxPIDController armExtensionPIDController;
   private CANSparkMax armPivotMotor = new CANSparkMax(armPivotCANID, MotorType.kBrushless);
   private RelativeEncoder armPivotEncoder;
   private SparkMaxPIDController armPivotPIDController;
@@ -105,7 +108,7 @@ public class Robot extends TimedRobot
   public double kI = 0.0001;
   // (D)ifferential Value - slows the motor down as the
   // motor gets closer to its goal 
-  public double kD = .0008; 
+  public double kD = .0009; 
   // I Zone (rotations) - limits when the I value starts keeping track
   public double kIz = 30; 
   // Feed forward is the minimum amount of power we think
@@ -118,13 +121,13 @@ public class Robot extends TimedRobot
   // These are the rotations we want for each arm position
   //
   // Pick things up off the floor
-  public int armFloorRotations = 48;
+  public int armFloorRotations = 46;
   // Grab an upright cone at the top
-  public int armConeTopRotations = 38;
+  public int armConeTopRotations = -20;
   // Go to scoring angle
   public int armScoreRotations = 14;
   // Raise arm high for travelS
-  public int armTravelRotations = 4;
+  public int armTravelRotations = 2;
 
 
   // Xbox controller for driver
@@ -213,20 +216,17 @@ public class Robot extends TimedRobot
       armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
     }
   
-    if (autoTimer.get() > 7)
+    if (autoTimer.get() > 11.0 && autoTimer.get() < 13.0) 
     {
-      // Roll back and balance. We put a negative sign
-      // in front of the speed calculation in order to
-      // reverse the direction since it assumes the bot
-      // is facing the charging station.
-      autoBalanceSpeed = -autoBalance.autoBalanceRoutine();      
-      leftMotor.set(autoBalanceSpeed);
-      rightMotor.set(autoBalanceSpeed);
+      armExtensionMotor.set(0);
+      // roll back
+      leftMotor.set(-.3);
+      rightMotor.set(-.3);
     }
-
-    if (autoTimer.get() > 11.0) 
+    else if (autoTimer.get() > 14.0)
     {
-      // armExtensionMotor.set(0);
+      leftMotor.set(0);
+      rightMotor.set(0);
     }
   }
 
@@ -246,7 +246,7 @@ public class Robot extends TimedRobot
     
     // Set up Arm Extension encoder even though we aren't using it right now
     armExtensionEncoder = armExtensionMotor.getEncoder();
-    armExtensionEncoder.setPosition(0);
+    armExtensionPIDController = armExtensionMotor.getPIDController();
 
     // We ARE using the armPivot encoder and doing a PIDController
     armPivotEncoder = armPivotMotor.getEncoder();
@@ -306,23 +306,29 @@ public class Robot extends TimedRobot
     // Right joystick controls spinning in place
     if (!balancing)
     {
-      driveTrain.arcadeDrive(xbox_drive.getRightX()*driveScale, filter.calculate(xbox_drive.getLeftY()*driveScale));
+      driveTrain.arcadeDrive(xbox_drive.getRightX()*driveScale, xbox_drive.getLeftY()*driveScale);
     }
     // Arm extension
     armExtensionMotor.set(xbox_operator.getLeftY()*.6);
 
     // Display the arm Pivot encoder position on the dashboard (rotations)
-    //SmartDashboard.putNumber("Arm Pivot", armPivotEncoder.getPosition());
-    //SmartDashboard.putNumber("Arm Extension", armExtensionEncoder.getPosition());
-    //SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
+    SmartDashboard.putNumber("Arm Pivot", armPivotEncoder.getPosition());
+    SmartDashboard.putNumber("Arm Extension", armExtensionEncoder.getPosition());
+    SmartDashboard.putNumber("Arm Pivot Encoder Velocity", armPivotEncoder.getVelocity());
 
     // Autobalance during teleop
     if (xbox_drive.getAButton())
     {
-      balancing = true;
-      autoBalanceSpeed = autoBalance.autoBalanceRoutine();
-      leftMotor.set(autoBalanceSpeed);
-      rightMotor.set(-autoBalanceSpeed);
+      if (!balancing)
+      {
+        autoBalanceSpeed = autoBalance.autoBalanceRoutine();
+        leftMotor.set(autoBalanceSpeed);
+        rightMotor.set(-autoBalanceSpeed);
+      }
+      else
+      {
+        balancing = true;
+      }
     }
     else
     {
@@ -332,14 +338,8 @@ public class Robot extends TimedRobot
     // Raise arm all the way to travel
     if (xbox_operator.getAButton())
     {
-      System.out.println("A Button - Arm at cone tip level!");
-      armPivotPIDController.setP(kP);
-      armPivotPIDController.setI(kI);
-      armPivotPIDController.setD(kD);
-      armPivotPIDController.setIZone(kIz);
-      armPivotPIDController.setFF(kFF);
-      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
-      armPivotPIDController.setReference(armConeTopRotations, CANSparkMax.ControlType.kPosition);
+      System.out.println("A Button - Extend Arm for floor cone!");
+      // Want this to extend the arm 4 in. but the encoder isn't working.
     }
     // Move arm into scoring position
     else if (xbox_operator.getBButton())
@@ -379,7 +379,17 @@ public class Robot extends TimedRobot
     } 
 
     // Intake system
-    leftIntakeMotor.set(xbox_operator.getRightY() * leftIntakeDirection *.5);
-    rightIntakeMotor.set(xbox_operator.getRightY() * rightIntakeDirection * .5);
+    if (xbox_operator.getRightY() < 0)
+    {
+      intakeScale = .6;
+    }
+    else
+    {
+      intakeScale = 1.0;
+    }
+    leftIntakeMotor.set(xbox_operator.getRightY()  * leftIntakeDirection * intakeScale);
+    rightIntakeMotor.set(xbox_operator.getRightY() * rightIntakeDirection * intakeScale);
   }
+
+
 }
