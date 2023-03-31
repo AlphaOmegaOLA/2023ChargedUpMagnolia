@@ -38,6 +38,8 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.DataLogManager;
 // Limit joystick jumpiness
 import edu.wpi.first.math.filter.SlewRateLimiter;
+// Autonomous menu selection
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 
 // Program the robot...
 public class Robot extends TimedRobot 
@@ -76,8 +78,15 @@ public class Robot extends TimedRobot
   private double driveSlow = .4;
   // Scaling factor to slow down drive speed
   private double driveScale = driveFast;
-  // Autobalance speed
+  // Autobalance speed - not using currently
   private double autoBalanceSpeed;
+  // Autonomous routine menu
+  //private final SendableChooser<String> autoMenu = new SendableChooser<>();
+  private final String mobility = "Mobility";
+  private final String dock = "Dock";
+  private String autoSelected;
+  // Autonomous speed
+  private String autoSpeed;
 
   // Intake Motors
   private double leftIntakeDirection = -1.0;
@@ -147,8 +156,7 @@ public class Robot extends TimedRobot
 
   public void autonomousInit() 
   {
-    // reset all encoders is done in robot init
-        // Timer reset
+    // Timer reset
     autoTimer.reset();
     autoTimer.start();
         // Turn on the lights for autonomous based on our alliance color
@@ -199,9 +207,10 @@ public class Robot extends TimedRobot
 
     if (autoTimer.get() > 4 && autoTimer.get() < 7) 
     {
+      armExtensionMotor.set(0);
       // Drop game piece
-      leftIntakeMotor.set(-1 * leftIntakeDirection);
-      rightIntakeMotor.set(-1 * rightIntakeDirection);
+      leftIntakeMotor.set(-.4 * leftIntakeDirection);
+      rightIntakeMotor.set(-.4 * rightIntakeDirection);
     }
 
     if (autoTimer.get() > 7 && autoTimer.get() < 10) 
@@ -217,15 +226,14 @@ public class Robot extends TimedRobot
       armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
       armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
     }
-  
-    if (autoTimer.get() > 11.0 && autoTimer.get() < 13.0) 
+    if (autoTimer.get() > 11.0 && autoTimer.get() < 13.24) 
     {
       armExtensionMotor.set(0);
       // roll back
       leftMotor.set(-.3);
-      rightMotor.set(-.3);
-    }
-    else if (autoTimer.get() > 14.0)
+      rightMotor.set(.3);
+    }      
+    else if (autoTimer.get() > 13.24)
     {
       leftMotor.set(0);
       rightMotor.set(0);
@@ -243,8 +251,13 @@ public class Robot extends TimedRobot
     // Set the match name to practice initially
     SmartDashboard.putString("MATCH", "practice");
 
-    // AutoBalance engine
+    // AutoBalance engine - not using
     autoBalance = new AutoBalance();
+
+    // Auto 
+    // autoMenu.setDefaultOption("Mobility", mobility);
+    // autoMenu.addOption("Dock", dock);
+    // SmartDashboard.putData("Autonomous", autoMenu);
     
     // Set up Arm Extension encoder even though we aren't using it right now
     armExtensionEncoder = armExtensionMotor.getEncoder();
@@ -388,6 +401,11 @@ public class Robot extends TimedRobot
     else
     {
       intakeScale = 1.0;
+    }
+    if (xbox_operator.getRightTriggerAxis() > 0)
+    {
+      intakeScale = 1.0;
+      System.out.println("Intake Fast");
     }
     leftIntakeMotor.set(xbox_operator.getRightY()  * leftIntakeDirection * intakeScale);
     rightIntakeMotor.set(xbox_operator.getRightY() * rightIntakeDirection * intakeScale);
