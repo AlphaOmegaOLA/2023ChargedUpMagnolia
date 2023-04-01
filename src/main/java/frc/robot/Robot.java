@@ -180,7 +180,7 @@ public class Robot extends TimedRobot
   @Override
   public void autonomousPeriodic()
   {
-
+    
     // Display match data on dashboard
     // We do this in periodic because robot code can start before connecting to the FMS
     if (DriverStation.isFMSAttached() && !hasMatchName) 
@@ -192,7 +192,10 @@ public class Robot extends TimedRobot
       SmartDashboard.putString("MATCH", String.format("%s_%s_%d_%d", eventName, matchType.name(), matchNumber, replayNumber));
       hasMatchName = true;
     }    
-
+    // PREVIOUS AUTONOMOUS CODE USED ON 3-31-23.
+    // UNCOMMENT THIS SECTION AND COMMENT OUT THE NEW
+    // SECTION IF WE NEED TO RESTORE.
+    /*
     if (autoTimer.get() > 0 && autoTimer.get() < 4) 
     {
       armPivotPIDController.setP(kP);
@@ -238,6 +241,87 @@ public class Robot extends TimedRobot
       leftMotor.set(0);
       rightMotor.set(0);
     }
+    */
+    // NEW AUTONOMOUS CODE FOR 4-1-23 TO TRY AND AUTOBALANCE.
+    // IF WE CAN'T GET THIS WORKING, COMMENT IT OUT AND UNCOMMENT
+    // THE ABOVE SECTION.
+    if (autoTimer.get() > 0 && autoTimer.get() < 4) 
+    {
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armScoreRotations, CANSparkMax.ControlType.kPosition);
+      armExtensionMotor.set(-.4);
+    }
+
+    if (autoTimer.get() > 4 && autoTimer.get() < 7) 
+    {
+      armExtensionMotor.set(0);
+      // Drop game piece
+      leftIntakeMotor.set(-.4 * leftIntakeDirection);
+      rightIntakeMotor.set(-.4 * rightIntakeDirection);
+    }
+
+    if (autoTimer.get() > 7 && autoTimer.get() < 10) 
+    {
+      leftIntakeMotor.set(0);
+      rightIntakeMotor.set(0);
+      armExtensionMotor.set(.4);
+      armPivotPIDController.setP(kP);
+      armPivotPIDController.setI(kI);
+      armPivotPIDController.setD(kD);
+      armPivotPIDController.setIZone(kIz);
+      armPivotPIDController.setFF(kFF);
+      armPivotPIDController.setOutputRange(kMinOutput, kMaxOutput);
+      armPivotPIDController.setReference(armTravelRotations, CANSparkMax.ControlType.kPosition);
+      // START ROLLING BACK EARLY AND SLOW! .1 may not be enough power. .3 will probably be too much.
+      // CHANGE THE VARIABLE slowSpeed below and it will set it for the whole scenario.
+      private final slowSpeed = .1;
+      
+      leftMotor.set(-slowSpeed);
+      rightMotor.set(slowSpeed);
+    }
+    if (autoTimer.get() > 11.0 && autoTimer.get() < 14.5) 
+    {
+      armExtensionMotor.set(0);
+      // See if we're tilting and need to correct.
+      // Starting with 6 and -6 as the downhill angles. We need to verify
+      // on the practice charging station!!!!!
+      if (autoBalance.getTilt() > 6)
+      {
+        balancing = true;
+        // Roll forward
+        leftMotor.set(slowSpeed);
+        rightMotor.set(-slowSpeed);
+      }
+      else if (autoBalance.getTilt() < -6)
+      {
+        balancing = true;
+        leftMotor.set(-slowSpeed);
+        rightMotor.set(slowSpeed);
+      }
+      else
+      {
+        // Check if we were ever on the ramp and then stop if we're balanced.
+        // Otherwise keep rolling back for mobility.
+        if (balancing)
+        {
+          // If our tilt is between 6 and -6, then consider us level and stop.
+          leftMotor.set(0);
+          rightMotor.set(0); 
+        }
+      }
+    }      
+    else if (autoTimer.get() > 14.5)
+    {
+      // Stop no matter what 
+      leftMotor.set(0);
+      rightMotor.set(0);
+    }
+    // STOP COMMENTING OUT HERE!
   }
 
   // ROBOT INITIALIZATION
